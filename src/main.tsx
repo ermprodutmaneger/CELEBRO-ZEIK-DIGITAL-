@@ -68,10 +68,19 @@ import {
   cleanName,
   type Prospect,
 } from "./prospecting/research";
+import { SecureBackup } from "./backup/SecureBackup";
 import { CommandCenter } from "./command/CommandCenter";
 import { clientContext, openProposals } from "./command/decision";
 import FounderFinance from "./founder-finance/FounderFinance";
 import {load as loadFounderFinance, calculate as calculateFounderFinance, agency as founderAgency} from "./founder-finance/model";
+import "@fontsource/dm-sans/400.css";
+import "@fontsource/dm-sans/500.css";
+import "@fontsource/dm-sans/600.css";
+import "@fontsource/dm-sans/700.css";
+import "@fontsource/space-grotesk/400.css";
+import "@fontsource/space-grotesk/500.css";
+import "@fontsource/space-grotesk/600.css";
+import "@fontsource/space-grotesk/700.css";
 import "./style.css";
 const Brain = lazy(() => import("./Brain"));
 class BrainBoundary extends React.Component<
@@ -236,6 +245,7 @@ function App() {
   });
   const [store, setStore] = useState<Store>(loadResult.data);
   const [storageError, setStorageError] = useState(loadResult.error);
+  const [backupGeneration, setBackupGeneration] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [pendingTask, setPendingTask] = useState<string | null>(null);
   const [financeMonth, setFinanceMonth] = useState(today().slice(0, 7));
@@ -347,27 +357,18 @@ function App() {
     setToast("Salvo neste dispositivo");
   };
   const updateRecord = (it: Item, reason: string) => {
-    setStore((s) => ({
-      ...s,
-      items: s.items.map((x) =>
-        x.id === it.id
-          ? {
-              ...it,
-              changes:
-                it.type === "projects"
-                  ? [
-                      `${new Date().toLocaleString("pt-BR")} · ${reason}`,
-                      ...(it.changes || []),
-                    ].slice(0, 100)
-                  : it.changes,
-            }
-          : x,
-      ),
-      history: [
-        `${new Date().toLocaleString("pt-BR")} · ${reason}: ${it.name}`,
-        ...s.history,
-      ].slice(0, 100),
-    }));
+    if (storageError) { setToast("Restaure os dados locais antes de alterar registros."); return; }
+    const nextStore = {
+      ...store,
+      items: store.items.map(x => x.id === it.id ? {
+        ...it,
+        changes: it.type === "projects" ? [`${new Date().toLocaleString("pt-BR")} · ${reason}`, ...(it.changes || [])].slice(0, 100) : it.changes,
+      } : x),
+      history: [`${new Date().toLocaleString("pt-BR")} · ${reason}: ${it.name}`, ...store.history].slice(0, 100),
+    };
+    try { validateStore(nextStore); localRepository.save(nextStore); }
+    catch { setToast("Não foi possível salvar a alteração. Confira o espaço do navegador."); return; }
+    setStore(nextStore);
     setToast("Alteração salva localmente");
   };
   const addProspect = (p: Prospect) => {
@@ -398,7 +399,7 @@ function App() {
       date: "",
       updated: today(),
       next: "Confirmar atividade, canais digitais, contato e interesse.",
-      notes: `Pesquisa pontual em ${researchedAt.split("-").reverse().join("/")}. Fonte: ${p.source}\nEndereço: ${p.address}. WhatsApp informado: ${p.phone}.\nFato: ${p.fact}\nHipótese a validar: ${p.idea}\n${p.website ? `Presença encontrada: ${p.website} (${p.websiteLabel}). ` : ""}Verificação de site e Perfil da Empresa no Google não é abrangente. O valor e a probabilidade não foram estimados.`,
+      notes: `Pesquisa pontual em ${researchedAt.split("-").reverse().join("/")}. Fonte: ${p.source}\nEndereço: ${p.address}. ${p.contactKind === "telefone" ? "Telefone informado" : "WhatsApp informado"}: ${p.phone}.\nFato: ${p.fact}\nHipótese a validar: ${p.idea}\n${p.website ? `Presença encontrada: ${p.website} (${p.websiteLabel}). ` : ""}Verificação de site e Perfil da Empresa no Google não é abrangente. O valor e a probabilidade não foram estimados.`,
     };
     setStore((s) => ({
       ...s,
@@ -1336,7 +1337,7 @@ function App() {
                 />
               )}
               {page === "founder-finance" ? (
-                <FounderFinance items={items} onAgencyState={(id, month, state) => {
+                <FounderFinance key={backupGeneration} items={items} onAgencyState={(id, month, state) => {
                   const item = items.find(x => x.id === id);
                   if (item && state !== "pago") updateRecord({...item, monthlyStates:{...item.monthlyStates,[month]:state}}, "Situação mensal da receita atualizada");
                 }} />
@@ -1757,6 +1758,7 @@ function App() {
               automático. Exporte seus dados regularmente. O backup geral inclui clientes, logos e histórico, mas não inclui as finanças pessoais: exporte também o backup privado em Finanças do Fundador. Arquivos não são criptografados.
               <br />{lastBackup ? `Última exportação geral iniciada: ${new Date(lastBackup).toLocaleDateString("pt-BR")}. Confirme que o arquivo foi salvo.` : "Ainda não há exportação geral registrada neste navegador."}
             </p>
+            <SecureBackup store={store} disabled={storageError} onRestore={(restored) => { setStore(restored); setStorageError(false); setBackupGeneration(x => x + 1); }} />
             <div className="generator-buttons">
               <button className="button secondary" onClick={exportData}>
                 <Download size={16} /> Exportar JSON

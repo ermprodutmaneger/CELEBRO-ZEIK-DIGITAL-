@@ -36,6 +36,7 @@ export function ProspectList({
           <h2>
             Oportunidades para <span>investigar</span>
           </h2>
+          <p><strong>{prospects.length} oportunidades</strong> para qualificar.</p>
           <p>
             Selecionadas em fontes públicas em 21/11/2026. Não é busca ao
             vivo nem lista de interessados confirmados.
@@ -91,7 +92,7 @@ export function ProspectList({
                   {p.address}
                 </p>
                 <p>
-                  <strong>WhatsApp informado</strong>
+                  <strong>{p.contactKind === "telefone" ? "Telefone informado" : "WhatsApp informado"}</strong>
                   {p.phone}
                 </p>
                 {p.website && (

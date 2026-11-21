@@ -1,0 +1,10 @@
+/** Encrypted, local backup; never store passphrases or send data to a server. */
+const encoder = new TextEncoder();
+const decoder = new TextDecoder('utf-8', {fatal:true});
+const rounds = 310_000;
+const to64=(v:Uint8Array)=>{let s='';for(let i=0;i<v.length;i+=8192)s+=String.fromCharCode(...v.subarray(i,i+8192));return btoa(s)};
+const from64=(s:string)=>{if(!/^[A-Za-z0-9+/]*={0,2}$/.test(s))throw Error('Base64 inválido');return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
+type Envelope={format:'zeik-backup-criptografado';version:1;kdf:'PBKDF2-SHA256';iterations:number;salt:string;iv:string;ciphertext:string};
+async function derive(pass:string,salt:Uint8Array,iterations:number){const material=await crypto.subtle.importKey('raw',encoder.encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:new Uint8Array(salt),iterations},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+export async function encryptBackup(data:unknown,pass:string):Promise<Envelope>{if(pass.length<12)throw Error('Use uma frase de pelo menos 12 caracteres.');const salt=crypto.getRandomValues(new Uint8Array(16));const iv=crypto.getRandomValues(new Uint8Array(12));const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},await derive(pass,salt,rounds),encoder.encode(JSON.stringify(data)));return {format:'zeik-backup-criptografado',version:1,kdf:'PBKDF2-SHA256',iterations:rounds,salt:to64(salt),iv:to64(iv),ciphertext:to64(new Uint8Array(cipher))}}
+export async function decryptBackup(value:unknown,pass:string):Promise<unknown>{const x=value as Envelope;if(!x||x.format!=='zeik-backup-criptografado'||x.version!==1||x.kdf!=='PBKDF2-SHA256'||x.iterations!==rounds||typeof x.salt!=='string'||typeof x.iv!=='string'||typeof x.ciphertext!=='string')throw Error('Arquivo incompatível');const salt=from64(x.salt),iv=from64(x.iv),cipher=from64(x.ciphertext);if(salt.length!==16||iv.length!==12||cipher.length<16)throw Error('Arquivo incompatível');return JSON.parse(decoder.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},await derive(pass,salt,x.iterations),cipher)))}

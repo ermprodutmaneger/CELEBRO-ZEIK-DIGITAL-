@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { prospects, cleanName, researchId, researchedAt } from "./research";
 describe("pesquisa pontual", () => {
   it("tem identificadores únicos e fontes públicas HTTPS", () => {
-    expect(prospects.length).toBe(18);
+    expect(prospects.length).toBe(50);
     expect(new Set(prospects.map((p) => cleanName(p.name))).size).toBe(prospects.length);
     expect(new Set(prospects.map((p) => researchId(p.id))).size).toBe(
       prospects.length,
