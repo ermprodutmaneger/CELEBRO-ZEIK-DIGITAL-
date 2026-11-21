@@ -43,6 +43,7 @@ export type Item = {
     references: string;
   };
   changes?: string[];
+  monthlyStates?: Record<string, "previsto" | "recebido" | "vencido">;
   financeKind?: "receita" | "despesa" | "mensalidade" | "contrato";
   financeState?: "previsto" | "recebido" | "pago" | "ativo" | "encerrado";
 };
@@ -224,6 +225,7 @@ export function validateStore(data: unknown): Store {
         !/^\/clients\/[a-z0-9-]+\.jpg$/.test(x.avatar))
     )
       throw Error("Avatar inválido");
+    if (x.monthlyStates !== undefined && (!obj(x.monthlyStates) || !Object.entries(x.monthlyStates).every(([month, state]) => /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && ["previsto", "recebido", "vencido"].includes(state as string)))) throw Error("Estado mensal inválido");
     if (x.logo !== undefined && !validLogo(x.logo)) throw Error("Logo inválida");
     if (x.relationshipHistory !== undefined && (typeof x.relationshipHistory !== "string" || x.relationshipHistory.length > 20000)) throw Error("História do cliente inválida");
     if (

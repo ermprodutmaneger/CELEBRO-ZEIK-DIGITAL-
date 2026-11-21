@@ -68,8 +68,10 @@ import {
   cleanName,
   type Prospect,
 } from "./prospecting/research";
+import { CommandCenter } from "./command/CommandCenter";
+import { clientContext, openProposals } from "./command/decision";
 import FounderFinance from "./founder-finance/FounderFinance";
-import {load as loadFounderFinance, calculate as calculateFounderFinance} from "./founder-finance/model";
+import {load as loadFounderFinance, calculate as calculateFounderFinance, agency as founderAgency} from "./founder-finance/model";
 import "./style.css";
 const Brain = lazy(() => import("./Brain"));
 class BrainBoundary extends React.Component<
@@ -254,6 +256,7 @@ function App() {
     [],
   );
   const [toast, setToast] = useState("");
+  const [lastBackup, setLastBackup] = useState(() => { try { return localStorage.getItem("zeik-last-backup-attempt") || ""; } catch { return ""; } });
   const [template, setTemplate] = useState("");
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -303,7 +306,11 @@ function App() {
     (x) => x.type === "tasks" && x.status !== "Concluído",
   );
   const finance = items.filter((x) => x.type === "finance");
-  const totals = financeSummary(items, financeMonth);
+  const getRecurringReceived = (month: string) => {
+    try { return founderAgency(items, month, loadFounderFinance()).filter(e => e.state === "recebido" && items.some(i => i.id === e.id && financeInfo(i).kind === "mensalidade")).reduce((sum,e) => sum + e.amount, 0); } catch { return 0; }
+  };
+  const rawTotals = financeSummary(items, financeMonth);
+  const totals = { ...rawTotals, received: rawTotals.received + getRecurringReceived(financeMonth) };
   const mrr = totals.mrr,
     income = totals.received,
     expenses = totals.paid;
@@ -474,8 +481,19 @@ function App() {
         const monthMatch = text.match(/\b(20\d{2})-(0[1-9]|1[0-2])\b/);
         const month = monthMatch ? monthMatch[0] : today().slice(0, 7);
         const c = calculateFounderFinance(data, items, month);
-        r = `Consulta local ${month}: salário líquido previsto ${money(data.salaryNet)}, renda extra ${money(c.extra)}, contas ${money(c.bills)} (pendentes ${money(c.pending)}), saldo previsto pessoal ${money(c.forecast)}. Saldo efetivo ${data.cash === null ? "não informado" : money(data.cash)}. Receita Zeik prevista ${money(c.agencyForecast)} não é dinheiro pessoal. Prioridade: confira vencimentos e recebimentos antes de comprometer o saldo. Valores não cadastrados não entram no cálculo.`;
+        r = `Consulta local ${month}: salário líquido previsto ${money(c.salary)}, renda extra ${money(c.extra)}, contas ${money(c.bills)} (pendentes ${money(c.pending)}), saldo previsto pessoal ${money(c.forecast)}. Saldo efetivo ${data.cash === null ? "não informado" : money(data.cash)}. Receita Zeik prevista ${money(c.agencyForecast)} não é dinheiro pessoal. Prioridade: confira vencimentos e recebimentos antes de comprometer o saldo. Valores não cadastrados não entram no cálculo.`;
       } catch { r = "Não foi possível ler as finanças privadas. Verifique ou restaure o backup no módulo."; }
+    } else if ((q.includes("pendente") || q.includes("contato") || q.includes("história") || q.includes("historia")) && clients.some(c => q.includes(c.name.toLocaleLowerCase("pt-BR")))) {
+      const client = clients.find(c => q.includes(c.name.toLocaleLowerCase("pt-BR")))!;
+      const context = clientContext(items, client);
+      r = `${client.name}: próxima ação ${client.next || "não informada"}. ${context.projects.filter(p => p.status !== "Concluído").length} projeto(s) em aberto; ${context.contacts.length} contato(s) registrado(s); ${context.financial.filter(f => financeInfo(f).kind === "receita" && financeInfo(f).state === "previsto").length} cobrança(s) prevista(s). Consulte a ficha para detalhes; nada foi enviado.`;
+    } else if (q.includes("proposta")) {
+      const list = openProposals(items);
+      r = list.length ? `Propostas em rascunho ou enviadas: ${list.map(x => `${x.item.name} — ${x.proposal.title} (${x.proposal.status})`).join("; ")}. Estados informados pelo usuário.` : "Não há propostas em rascunho ou enviadas cadastradas.";
+    } else if ((q.includes("previsto") || q.includes("receber")) && (q.includes("mês") || q.includes("mes"))) {
+      const month = text.match(/\b20\d{2}-(?:0[1-9]|1[0-2])\b/)?.[0] || today().slice(0,7);
+      const summary = financeSummary(items, month);
+      r = `Financeiro principal, ${month}: ${money(summary.forecast)} em receitas pontuais previstas e ${money(summary.received)} recebidos. Mensalidades não estão incluídas nessa previsão; confira Finanças do Fundador para o cálculo mensal da Zeik.`;
     } else if (
       q.includes("quem sou") ||
       q.includes("o que você sabe") ||
@@ -546,6 +564,8 @@ function App() {
     a.download = "zeik-brain-dados.json";
     a.click();
     URL.revokeObjectURL(a.href);
+    const at = new Date().toISOString();
+    try { localStorage.setItem("zeik-last-backup-attempt", at); setLastBackup(at); } catch { /* backup remains available even if reminder cannot be saved */ }
   };
   const importData = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -619,7 +639,7 @@ function App() {
     const key = d.toISOString().slice(0, 7);
     return {
       name: d.toLocaleDateString("pt-BR", { month: "short" }),
-      value: finance
+      value: getRecurringReceived(key) + finance
         .filter(
           (x) =>
             x.date?.startsWith(key) &&
@@ -1131,6 +1151,7 @@ function App() {
                   onClick={() => navigate("finance")}
                 />
               </div>
+              <CommandCenter items={items} onOpen={x => setDetailId(x.id)} onNavigate={navigate} onBackup={() => setModal("settings")} />
               <div className="bottom-grid">
                 <section className="panel chart-card">
                   <div className="card-heading">
@@ -1315,7 +1336,10 @@ function App() {
                 />
               )}
               {page === "founder-finance" ? (
-                <FounderFinance items={items} />
+                <FounderFinance items={items} onAgencyState={(id, month, state) => {
+                  const item = items.find(x => x.id === id);
+                  if (item && state !== "pago") updateRecord({...item, monthlyStates:{...item.monthlyStates,[month]:state}}, "Situação mensal da receita atualizada");
+                }} />
               ) : page === "founder" ? (
                 <FounderMemoryPage
                   data={founder}
@@ -1569,8 +1593,7 @@ function App() {
                         Previsto no mês:{" "}
                         <strong>{money(totals.forecast)}</strong> em receitas ·{" "}
                         <strong>{money(totals.pendingExpenses)}</strong> em
-                        despesas. Contratos e mensalidades não são somados aos
-                        recebimentos.
+                        despesas. A previsão aqui exclui mensalidades. Recebimentos de mensalidades marcados por mês em Finanças do Fundador são somados ao realizado; contratos não.
                       </div>
                     </>
                   )}
@@ -1731,7 +1754,8 @@ function App() {
             </div>
             <p className="notice">
               A persistência local é temporária: não há sincronização nem backup
-              automático. Exporte seus dados regularmente.
+              automático. Exporte seus dados regularmente. O backup geral inclui clientes, logos e histórico, mas não inclui as finanças pessoais: exporte também o backup privado em Finanças do Fundador. Arquivos não são criptografados.
+              <br />{lastBackup ? `Última exportação geral iniciada: ${new Date(lastBackup).toLocaleDateString("pt-BR")}. Confirme que o arquivo foi salvo.` : "Ainda não há exportação geral registrada neste navegador."}
             </p>
             <div className="generator-buttons">
               <button className="button secondary" onClick={exportData}>
@@ -1776,6 +1800,7 @@ function App() {
             setModal(x.type);
           }}
           preferences={siteContext(founder)}
+          onOpenRecord={(x) => setDetailId(x.id)}
           onCreateProject={createProject}
           onDelete={() => {
             const id = detailId;

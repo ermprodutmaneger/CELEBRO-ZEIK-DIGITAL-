@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, FileText, Plus, Trash2, X } from "lucide-react";
 import type { Item } from "../types";
+import { proposalText } from "../command/decision";
 import {
   convertLead,
   leadPriority,
@@ -207,6 +208,7 @@ export function RecordDetails({
   onChange,
   onEdit,
   onCreateProject,
+  onOpenRecord,
   onDelete,
   preferences,
 }: {
@@ -216,10 +218,13 @@ export function RecordDetails({
   onChange: (x: Item, reason: string) => void;
   onEdit: () => void;
   onCreateProject: (x: Item) => void;
+  onOpenRecord: (x: Item) => void;
   onDelete: () => void;
   preferences: string[];
 }) {
   const [contact, setContact] = useState("");
+  const [contactDate, setContactDate] = useState("");
+  const [proposalNotes, setProposalNotes] = useState("");
   const [channel, setChannel] = useState("WhatsApp");
   const [proposal, setProposal] = useState("");
   const [proposalValue, setProposalValue] = useState("");
@@ -339,7 +344,7 @@ export function RecordDetails({
             </button>
           )}
         </div>
-        {item.fixedClient && (
+        {!isProject && items.some(x => x.type === "finance" && x.clientId === item.id) && (
           <section className="detail-section">
             <h3>Lançamentos vinculados</h3>
             {items
@@ -499,12 +504,13 @@ export function RecordDetails({
         ) : (
           <>
             <section className="detail-section">
-              <h3>Histórico de contatos</h3>
+              <h3>Linha do tempo de relacionamento</h3>
+              <p>Registre contatos, decisões e entregas. A data é opcional e não é presumida.</p>
               {(item.contacts || []).map((c) => (
                 <div className="detail-entry" key={c.id}>
                   <div>
                     <strong>
-                      {c.channel} · {c.date}
+                      {c.channel} · {c.date || "data não informada"}
                     </strong>
                     <p>{c.notes}</p>
                   </div>
@@ -537,7 +543,7 @@ export function RecordDetails({
                         contacts: [
                           {
                             id: id(),
-                            date: date(),
+                            date: contactDate,
                             channel,
                             notes: contact.trim(),
                           },
@@ -547,6 +553,7 @@ export function RecordDetails({
                       "Contato registrado",
                     );
                     setContact("");
+                    setContactDate("");
                   }
                 }}
               >
@@ -558,8 +565,11 @@ export function RecordDetails({
                   <option>Telefone</option>
                   <option>E-mail</option>
                   <option>Reunião</option>
+                  <option>Entrega</option>
+                  <option>Decisão / combinado</option>
                   <option>Outro</option>
                 </select>
+                <input aria-label="Data do registro (opcional)" type="date" value={contactDate} onChange={e => setContactDate(e.target.value)} />
                 <input
                   value={contact}
                   onChange={(e) => setContact(e.target.value)}
@@ -576,7 +586,10 @@ export function RecordDetails({
                     <strong>
                       {p.title} · {money(p.value)}
                     </strong>
-                    <p>{p.notes}</p>
+                    <label className="detail-field">Necessidade observada e escopo
+                      <textarea key={`${p.id}-${p.notes}`} defaultValue={p.notes} rows={3} onBlur={e => { if(e.target.value !== p.notes) update({proposals:(item.proposals || []).map(v => v.id === p.id ? {...v, notes:e.target.value} : v)}, "Escopo da proposta atualizado"); }} placeholder="Registrar necessidade e escopo a combinar" />
+                    </label>
+                    <button type="button" className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(proposalText(item.name,p.title,p.value,p.notes)); alert("Prévia copiada. Revise antes de enviar."); } catch { alert("Não foi possível copiar; confira as permissões do navegador."); } }}>Copiar prévia</button>
                   </div>
                   <select
                     aria-label={`Status da proposta ${p.title}`}
@@ -632,7 +645,7 @@ export function RecordDetails({
                             title: proposal.trim(),
                             value: Number(proposalValue),
                             status: "Rascunho",
-                            notes: "",
+                            notes: proposalNotes.trim(),
                           },
                         ],
                       },
@@ -640,6 +653,7 @@ export function RecordDetails({
                     );
                     setProposal("");
                     setProposalValue("");
+                    setProposalNotes("");
                   }
                 }}
               >
@@ -658,6 +672,7 @@ export function RecordDetails({
                   placeholder="Valor R$"
                   required
                 />
+                <input value={proposalNotes} onChange={e => setProposalNotes(e.target.value)} placeholder="Necessidade e escopo (opcional)" />
                 <button className="button secondary">Adicionar</button>
               </form>
             </section>
@@ -671,9 +686,9 @@ export function RecordDetails({
                     (x) => x.type === "projects" && x.clientId === item.id,
                   )
                   .map((x) => (
-                    <p key={x.id}>
+                    <button className="button secondary" key={x.id} onClick={() => onOpenRecord(x)}>
                       {x.name} · {x.status} <ArrowRight size={12} />
-                    </p>
+                    </button>
                   ))}
               </section>
             )}
