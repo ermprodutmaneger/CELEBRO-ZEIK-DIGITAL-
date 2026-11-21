@@ -113,6 +113,7 @@ function supportsWebGL() {
 const modules = [
   { id: "dashboard", label: "Visão geral", icon: LayoutDashboard },
   { id: "core", label: "Zeik Core", icon: BrainCircuit },
+  { id: "brain", label: "Meu Cérebro 3D", icon: Sparkles },
   { id: "crm", label: "CRM & Clientes", icon: Users },
   { id: "leads", label: "Caçador de Leads", icon: Target },
   { id: "projects", label: "Projetos", icon: Boxes },
@@ -187,6 +188,7 @@ const money = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const today = () => new Date().toISOString().slice(0, 10);
 const titles: Record<string, string> = {
+  brain: "Meu Cérebro 3D",
   crm: "CRM & Clientes",
   leads: "Caçador de Leads",
   projects: "Projetos",
@@ -683,12 +685,12 @@ function App() {
         </div>
         <div className="side-label">WORKSPACE</div>
         <nav>
-          {modules.map((m, i) => (
+          {modules.map((m) => (
             <React.Fragment key={m.id}>
-              {i === 2 && (
+              {m.id === "crm" && (
                 <div className="side-label section-label">OPERAÇÃO</div>
               )}
-              {i === 7 && (
+              {m.id === "founder" && (
                 <div className="side-label section-label">INTELIGÊNCIA</div>
               )}
               <button
@@ -792,7 +794,57 @@ function App() {
               o CRM e o financeiro antes de cadastrar.
             </div>
           ) : null}
-          {page === "dashboard" || page === "core" ? (
+          {page === "brain" ? (
+            <section className="brain-experience" aria-label="Meu cérebro 3D">
+              <div className="experience-heading">
+                <div><div className="eyebrow">✦ ZEIK BRAIN · SEU ESPAÇO</div>
+                  <h1>Seu cérebro, <span>de perto.</span></h1>
+                  <p>Explore suas áreas e os dados que você mantém neste dispositivo.</p>
+                </div>
+                <label className="experience-quality">Qualidade gráfica
+                  <select value={quality} onChange={e => setQuality(e.target.value)} aria-label="Qualidade gráfica do cérebro">
+                    <option value="high">Alta</option><option value="low">Baixa</option>
+                  </select>
+                </label>
+              </div>
+              <div className="experience-grid">
+                <div className="experience-stage panel">
+                  <div className="stage-label"><span>VISUALIZAÇÃO 3D</span><small>SEU UNIVERSO ZEIK</small></div>
+                  <div className="experience-canvas">
+                    {view === "3d" ? <BrainBoundary><Suspense fallback={<div className="brain-fallback">Carregando cérebro 3D...</div>}><Brain quality={quality} selected={agent} onSelect={setAgent} /></Suspense></BrainBoundary>
+                      : <div className="brain-fallback"><BrainCircuit size={100}/><span>Visualização simplificada</span></div>}
+                  </div>
+                  <div className="experience-stage-footer"><span>Arraste para girar · use dois dedos para ampliar</span>
+                    <button onClick={() => setView(view === "3d" ? "2d" : "3d")}>{view === "3d" ? "Modo simplificado" : "Ver em 3D"}</button>
+                  </div>
+                </div>
+                <aside className="experience-detail panel" aria-live="polite">
+                  <div className="experience-detail-top"><div className="experience-detail-icon"><BrainCircuit size={23}/></div><span>ÁREA SELECIONADA · {String(agent + 1).padStart(2, "0")}</span></div>
+                  <h2>{agents[agent].name}</h2><p>{agents[agent].desc}</p>
+                  <div className="experience-info">
+                    <div className="experience-info-label">VISÃO DO PAINEL</div>
+                    {agent === 0 && <><strong>{clients.length} clientes ativos</strong><span>{projects.length} projetos e {tasks.length} tarefas em aberto. Dados cadastrados, não metas.</span></>}
+                    {agent === 1 && <><strong>{leads.length} leads no CRM</strong><span>As oportunidades pesquisadas ficam no Caçador de Leads e são adicionadas ao CRM quando você escolher.</span></>}
+                    {agent === 2 && <><strong>Central comercial</strong><span>Consulte propostas e acompanhe os próximos passos registrados.</span></>}
+                    {agent === 3 && <><strong>{projects.length} projetos em aberto</strong><span>Planeje e acompanhe suas entregas no módulo de projetos.</span></>}
+                    {agent === 4 && <><strong>Marketing e conteúdo</strong><span>Acesse as ferramentas comerciais disponíveis. Nenhuma publicação é feita automaticamente.</span></>}
+                    {agent === 5 && <><strong>{money(mrr)} / mês</strong><span>Receita recorrente cadastrada da agência; não representa recebimento confirmado.</span></>}
+                    {agent === 6 && <><strong>Suas contas pessoais</strong><span>Veja lançamentos e previsões no módulo separado. Valores não são exibidos aqui por padrão.</span></>}
+                    {agent === 7 && <><strong>Memória da agência</strong><span>Consulte e organize as informações que você registrou.</span></>}
+                  </div>
+                  <button className="button primary experience-open" onClick={() => navigate(agents[agent].id)}>Abrir esta área <ArrowRight size={16}/></button>
+                  <p className="experience-disclaimer">Áreas locais e navegação manual. O movimento é visual; não representa atividade de IA.</p>
+                </aside>
+              </div>
+              <div className="experience-nodes-heading"><div><span>MAPA DO CÉREBRO</span><h2>Escolha uma área</h2></div><p>Toque em um ponto no cérebro ou em uma bolinha abaixo.</p></div>
+              <div className="experience-nodes" role="group" aria-label="Áreas do cérebro">
+                {agents.map((a,i)=><button key={a.name} className={"experience-node " + (agent === i ? "active" : "")} onClick={()=>setAgent(i)} aria-pressed={agent === i}><span className="experience-node-number">{String(i+1).padStart(2,"0")}</span><span><strong>{a.name}</strong><small>{a.desc}</small></span><ArrowUpRight size={15}/></button>)}
+              </div>
+              <div className="experience-founder panel"><div><span>SOBRE VOCÊ</span><h2>O que você escolheu guardar</h2>
+                {contextMemories(founder).filter(m => m.privacy !== "Sensível" && m.active !== false).length ? <ul>{contextMemories(founder).filter(m => m.privacy !== "Sensível" && m.active !== false).slice(0,3).map(m=><li key={m.id}>{m.content}</li>)}</ul> : <p>Ainda não há memórias confirmadas e autorizadas para contexto. Você decide o que registrar.</p>}
+                </div><button className="button secondary" onClick={()=>navigate("founder")}>Revisar minhas memórias <ArrowRight size={15}/></button></div>
+            </section>
+          ) : page === "dashboard" || page === "core" ? (
             <>
               <div className="page-heading">
                 <div>
@@ -954,9 +1006,9 @@ function App() {
                     </div>
                     <button
                       className="text-link"
-                      onClick={() => navigate("core")}
+                      onClick={() => navigate("brain")}
                     >
-                      Explorar o Core <ArrowRight size={16} />
+                      Abrir cérebro 3D <ArrowRight size={16} />
                     </button>
                   </div>
                 </section>
