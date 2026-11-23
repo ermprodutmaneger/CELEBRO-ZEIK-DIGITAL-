@@ -70,6 +70,7 @@ import {
 } from "./prospecting/research";
 import { SecureBackup } from "./backup/SecureBackup";
 import { CommandCenter } from "./command/CommandCenter";
+import { ApproachGuide } from "./sales/ApproachGuide";
 import { clientContext, openProposals } from "./command/decision";
 import FounderFinance from "./founder-finance/FounderFinance";
 import {load as loadFounderFinance, calculate as calculateFounderFinance, agency as founderAgency} from "./founder-finance/model";
@@ -1479,7 +1480,7 @@ function App() {
                     )}
                 </div>
               ) : page === "sales" ? (
-                <section className="panel generator">
+                <><ApproachGuide items={items} /><section className="panel generator">
                   <div className="card-heading">
                     <div>
                       <h3>Gerador comercial</h3>
@@ -1556,7 +1557,7 @@ function App() {
                       </button>
                     </>
                   )}
-                </section>
+                </section></>
               ) : (
                 <>
                   {page === "finance" && (
